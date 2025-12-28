@@ -1,0 +1,21 @@
+{
+  "asin": "B0CP6DDN1H",
+  "climate_pledge_friendly": false,
+  "currency": "USD",
+  "delivery": "FREE delivery Mon, Dec 29Or fastest delivery Sat, Dec 27",
+  "has_variations": true,
+  "is_amazon_choice": true,
+  "is_best_seller": false,
+  "is_prime": false,
+  "product_badge": "Overall Pick",
+  "product_minimum_offer_price": "$86.44",
+  "product_num_offers": 6,
+  "product_num_ratings": 4120,
+  "product_original_price": "$149.99",
+  "product_photo": "https://m.media-amazon.com/images/I/61xk4XNRktL._AC_UY654_FMwebp_QL65_.jpg",
+  "product_price": "$94.99",
+  "product_star_rating": "4.3",
+  "product_title": "Motorola Moto G Play | 2024 | Unlocked | Made for US 4/64GB | 50MP Camera | Sapphire Blue",
+  "product_url": "https://www.amazon.com/dp/B0CP6DDN1H",
+  "sales_volume": "7K+ bought in past month"
+}
