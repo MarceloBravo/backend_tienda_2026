@@ -1,10 +1,11 @@
 const bcrypt = require('bcrypt');
+require('dotenv').config();
 
 const password = process.argv.slice(2);
 
 console.log(password);
 
-const saltRounds = 10;
+const saltRounds = process.env.SALTROUND;
 
 // Generar el hash
 bcrypt.hash(password[0], saltRounds, (err, hash) => {

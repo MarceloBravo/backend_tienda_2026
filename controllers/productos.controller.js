@@ -8,7 +8,9 @@ class ProductoController{
     async getAllProducts(req, res, next){
         try {
             const search = req.query.search; // Extraer el parámetro de búsqueda
-            const products = await this.productModel.getProductsAll(search);
+            const page = req.query.page || 1;
+            const limit = req.query.limit || 10;
+            const products = await this.productModel.getProductsAll(search, page, limit);
             res.json({data: products});
         }catch(error){
             console.log(error);
@@ -48,7 +50,6 @@ class ProductoController{
 
     async updateProduct(req, res, next){
         try {
-            debugger
             const asin = req.params.id;
             const data = req.body;
             if(req.file){

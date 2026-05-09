@@ -1,0 +1,53 @@
+
+services:
+  app:
+    build: .
+    container_name: back_tienda_01
+    image: back_tienda_01 
+    restart: always
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - .:/app
+    environment:
+      - NODE_ENV=development
+      - DB_HOST=db
+      - DB_PORT=3306
+      - DB_USER=formularios
+      - DB_PASSWORD=admin123
+      - DB_NAME=tienda2
+    networks:
+      - app-network
+
+  db:
+    image: mysql:8.0
+    container_name: back_tienda_01db
+    restart: always
+    ports:
+      - "3307:3306"
+    environment:
+      - MYSQL_DATABASE=tienda2
+      - MYSQL_USER=formularios
+      - MYSQL_PASSWORD=admin123
+      - MYSQL_ROOT_PASSWORD=admin123
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./db/database.sql:/docker-entrypoint-initdb.d/database.sql
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-padmin123"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  db_data:
+
+networks:
+  app-network:
+    driver: bridge

@@ -5,7 +5,7 @@ class ProductoModel {
         this.db = cnn;
     }
 
-    async getProductsAll(search = null) {
+    async getProductsAll(search = null, page, limit) {
         let query = 'SELECT * FROM productos';
         const params = [];
         const searchableFields = ['asin', 'product_title', 'product_badge', 'sales_volume'];
@@ -16,6 +16,9 @@ class ProductoModel {
             params.push(...Array(searchableFields.length).fill(`%${search}%`));
         }
 
+        query += ' LIMIT ? OFFSET ?';
+        params.push(limit);
+        params.push((page - 1) * limit);
         const [rows] = await cnn.query(query, params);
         return rows;
     }

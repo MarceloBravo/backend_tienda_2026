@@ -1,4 +1,5 @@
 require('dotenv').config();
+const compression = require('compression')
 const cors = require('cors');
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -12,6 +13,7 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'] // Headers permitidos
 }));
 
+app.use(compression());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -32,6 +34,6 @@ app.use(errorHandler);
 app.set('port', process.env.PORT || 3000);
 
 // Iniciar el servidor
-app.listen(app.get('port'), 'localhost',() => {
+app.listen(app.get('port'), '0.0.0.0',() => {
   console.log(`Servidor activo en el puerto ${app.get('port')}`);
 });

@@ -8,7 +8,9 @@ class UserController{
     async getAllUsers(req, res, next){
         try {
             const search = req.query.search; // Extraer el parámetro de búsqueda
-            const users = await this.userModel.getUsersAll(search);
+            const page = parseInt(req.query.page) || 1;
+            const limit = parseInt(req.query.limit) || 10;
+            const users = await this.userModel.getUsersAll(search, page, limit);
             res.json({data: users});
         }catch(error){
             console.log(error);
