@@ -17,12 +17,12 @@ if ! sudo systemctl status mysql > /dev/null 2>&1; then
 fi
 
 # Crear tablas desde el archivo SQL
-if [ -f "db/database.sql" ]; then
+if [ -f "src/db/database.sql" ]; then
     echo "📊 Creando tablas desde database.sql..."
-    mysql -u $DB_USER -p$DB_PASSWORD $DB_NAME < db/database.sql
+    mysql -u $DB_USER -p$DB_PASSWORD $DB_NAME < src/db/database.sql
     echo "✅ Tablas creadas exitosamente"
 else
-    echo "❌ Archivo db/database.sql no encontrado"
+    echo "❌ Archivo src/db/database.sql no encontrado"
     exit 1
 fi
 

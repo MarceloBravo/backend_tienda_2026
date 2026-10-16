@@ -1,3 +1,11 @@
 node_modules
 .env
+.env.local
+.env.*.local
 .vscode
+.idea
+uploads
+coverage
+*.log
+server.log
+.DS_Store
