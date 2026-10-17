@@ -48,8 +48,18 @@ jobs:
           script_stop: true
           script: |
             set -e
-            cd /opt/tienda
-            git pull --ff-only
+            APP_DIR=/opt/tienda
+            REPO_URL=https://github.com/MarceloBravo/talentosp-front-back-clase4-backend.git
+
+            git config --global --add safe.directory "$APP_DIR"
+            mkdir -p "$APP_DIR"
+            cd "$APP_DIR"
+            git init -q
+            git remote remove origin > /dev/null 2>&1 || true
+            git remote add origin "$REPO_URL"
+            git fetch -q --depth 1 origin main
+            git checkout -q -f -B main FETCH_HEAD
+
             docker compose -f docker-compose.prod.yml up -d --build
 
             echo "Waiting for health check..."
