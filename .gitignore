@@ -9,3 +9,4 @@ coverage
 *.log
 server.log
 .DS_Store
+.env.oracle

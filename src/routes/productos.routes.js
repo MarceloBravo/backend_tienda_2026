@@ -102,6 +102,7 @@ function createProductosRouter(controller) {
    *       404:
    *         $ref: '#/components/responses/NotFound'
    */
+  router.get('/productos', bind(controller, 'getProductByAsin'));
   router.get('/productos/:id', bind(controller, 'getProductByAsin'));
   router.put(
     '/productos/:id',
