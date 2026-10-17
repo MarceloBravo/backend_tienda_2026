@@ -7,6 +7,13 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-cd-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -16,7 +23,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - name: Install dependencies
         run: npm ci
@@ -40,7 +47,21 @@ jobs:
           key: ${{ secrets.VPS_SSH_KEY }}
           script_stop: true
           script: |
+            set -e
             cd /opt/tienda
-            git pull
+            git pull --ff-only
             docker compose -f docker-compose.prod.yml up -d --build
-            docker image prune -f
+
+            echo "Waiting for health check..."
+            for i in $(seq 1 30); do
+              if curl -fsS http://localhost:3000/api/health > /dev/null 2>&1; then
+                echo "Health check OK"
+                docker image prune -f
+                exit 0
+              fi
+              sleep 2
+            done
+
+            echo "Health check failed"
+            docker compose -f docker-compose.prod.yml logs --tail=50 app
+            exit 1
