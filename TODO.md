@@ -178,3 +178,5 @@ Dependencias entre fases:
 - [x] Sin `console.log` en `src`; uso de logger.
 - [x] Validadores declarativos (Zod) en lugar de cadenas de `if`.
 - [x] 100% de métodos públicos documentados con JSDoc.
+
+Obs.: El frontend de la aplicación está disponible en el repositorio `https://github.com/MarceloBravo/Frontend_tienda_2026.git`

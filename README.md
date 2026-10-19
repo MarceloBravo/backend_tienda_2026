@@ -172,4 +172,6 @@ errores `{ status, statusCode, message, code }`.
 | `docker compose logs -f app` | Logs solo de la API |
 | `docker compose logs -f db` | Logs solo de MySQL |
 | `docker compose down` | Detener contenedores sin borrar el volumen |
-| `docker compose down -v` | Detener y borrar el volumen (reinicia la BD) |
+| `docker compose down -v` | Detener y borrar el volumen (reinicia la BD) 
+
+Obs.: El frontend de la aplicación está disponible en el repositorio [https://github.com/MarceloBravo/Frontend_tienda_2026.git](https://github.com/MarceloBravo/Frontend_tienda_2026.git)
