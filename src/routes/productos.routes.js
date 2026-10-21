@@ -33,7 +33,11 @@ function createProductosRouter(controller) {
    *       - { in: query, name: limit, schema: { type: integer, default: 10 } }
    *     responses:
    *       200:
-   *         description: Lista de productos
+   *         description: Listado de productos paginado (`data`, `totProd`, `page`)
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/ProductoList'
    *   post:
    *     tags: [Productos]
    *     summary: Crea un producto (público)
@@ -102,7 +106,6 @@ function createProductosRouter(controller) {
    *       404:
    *         $ref: '#/components/responses/NotFound'
    */
-  router.get('/productos', bind(controller, 'getProductByAsin'));
   router.get('/productos/:id', bind(controller, 'getProductByAsin'));
   router.put(
     '/productos/:id',

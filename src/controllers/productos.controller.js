@@ -16,17 +16,27 @@ class ProductosController {
   }
 
   /**
-   * Lista productos con búsqueda y paginación.
+   * Lista productos con búsqueda y paginación. La respuesta incluye el listado
+   * de la página (`data`), el total de productos encontrados (`totProd`) y la
+   * página actual o solicitada (`page`).
    *
    * @param {import('express').Request} req Petición con `search`, `page` y `limit`.
    * @param {import('express').Response} res Respuesta HTTP.
-   * @returns {Promise<import('express').Response>} Respuesta con la lista de productos.
+   * @returns {Promise<import('express').Response>} Respuesta `{ status, data, totProd, page }`.
    * @throws {Error} Propagado al `errorHandler`.
    */
   async getAllProducts(req, res) {
     const { search, page, limit } = req.query;
-    const products = await this.productosService.list({ search, page, limit });
-    return sendResponse(res, { data: products });
+    const {
+      data,
+      totProd,
+      page: currentPage,
+    } = await this.productosService.list({
+      search,
+      page,
+      limit,
+    });
+    return sendResponse(res, { data, meta: { totProd, page: currentPage } });
   }
 
   /**

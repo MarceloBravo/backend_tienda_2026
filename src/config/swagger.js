@@ -119,6 +119,18 @@ const definition = {
           product_photo: { type: 'string' },
         },
       },
+      ProductoList: {
+        type: 'object',
+        properties: {
+          status: { type: 'string', example: 'success' },
+          data: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/Producto' },
+          },
+          totProd: { type: 'integer', example: 42, description: 'Total de productos encontrados' },
+          page: { type: 'integer', example: 1, description: 'Página actual o solicitada' },
+        },
+      },
       Error: {
         type: 'object',
         properties: {

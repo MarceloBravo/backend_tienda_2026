@@ -146,7 +146,20 @@ Las rutas protegidas se pueden probar con el botón **Authorize** usando un toke
 | DELETE | `/api/productos/:id` | Público | Elimina un producto |
 
 Las respuestas exitosas usan el formato uniforme `{ status, message, data }` y los
-errores `{ status, statusCode, message, code }`.
+errores `{ status, statusCode, message, code }`. Los listados paginados agregan en
+la raíz los metadatos de paginación, por ejemplo `GET /api/productos`:
+
+```json
+{
+  "status": "success",
+  "data": [{ "asin": "B0CP6DDN1H", "product_title": "Producto" }],
+  "totProd": 42,
+  "page": 1
+}
+```
+
+Donde `totProd` es la cantidad total de productos encontrados (independiente de la
+paginación) y `page` es la página actual o solicitada.
 
 ## Seguridad
 

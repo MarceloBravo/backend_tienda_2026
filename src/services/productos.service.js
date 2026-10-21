@@ -1,6 +1,7 @@
 'use strict';
 
 const AppError = require('../errors/AppError');
+const { PAGINATION } = require('../config/constants');
 const { buildProductPayload } = require('../dto/product.dto');
 const { isDuplicateEntry } = require('../utils/dbErrors');
 
@@ -21,14 +22,19 @@ class ProductosService {
    * Lista productos con búsqueda y paginación.
    *
    * @param {object} params Parámetros de consulta.
-   * @param {string} [params.search] Término de búsqueda.
-   * @param {number} params.page Número de página.
-   * @param {number} params.limit Tamaño de página.
-   * @returns {Promise<object[]>} Lista de productos.
+   * @param {string|null} [params.search=null] Término de búsqueda.
+   * @param {number} [params.page=PAGINATION.DEFAULT_PAGE] Número de página (base 1).
+   * @param {number} [params.limit=PAGINATION.DEFAULT_LIMIT] Tamaño de página.
+   * @returns {Promise<{data: object[], totProd: number, page: number}>} Listado de
+   *   la página solicitada, el total de productos encontrados y la página actual.
    * @throws {Error} Si la consulta falla.
    */
-  async list({ search, page, limit }) {
-    return this.productoModel.getAll(search ?? null, page, limit);
+  async list({ search = null, page = PAGINATION.DEFAULT_PAGE, limit = PAGINATION.DEFAULT_LIMIT }) {
+    const [rows, totProd] = await Promise.all([
+      this.productoModel.getAll(search, page, limit),
+      this.productoModel.getCountAll(search),
+    ]);
+    return { data: rows, totProd, page };
   }
 
   /**

@@ -40,7 +40,7 @@ function buildApp(overrides = {}) {
       remove: jest.fn().mockResolvedValue(undefined),
     },
     productosService: {
-      list: jest.fn().mockResolvedValue([{ asin: 'A1' }]),
+      list: jest.fn().mockResolvedValue({ data: [{ asin: 'A1' }], totProd: 1, page: 1 }),
       getByAsin: jest.fn().mockResolvedValue({ asin: 'A1' }),
       create: jest.fn().mockResolvedValue({ asin: 'A1' }),
       update: jest.fn().mockResolvedValue({ asin: 'A1' }),
@@ -194,13 +194,52 @@ describe('API integration', () => {
   });
 
   describe('rutas de productos', () => {
-    it('GET /api/productos es público', async () => {
+    it('GET /api/productos es público y devuelve el listado paginado', async () => {
       const { app } = buildApp();
 
       const res = await request(app).get('/api/productos');
 
       expect(res.status).toBe(200);
-      expect(res.body.data).toEqual([{ asin: 'A1' }]);
+      expect(res.body).toEqual({
+        status: 'success',
+        data: [{ asin: 'A1' }],
+        totProd: 1,
+        page: 1,
+      });
+    });
+
+    it('GET /api/productos aplica la paginación validada por defecto', async () => {
+      const { app, services } = buildApp();
+
+      await request(app).get('/api/productos');
+
+      expect(services.productosService.list).toHaveBeenCalledWith({
+        search: undefined,
+        page: 1,
+        limit: 10,
+      });
+    });
+
+    it('GET /api/productos propaga la página y la búsqueda solicitadas', async () => {
+      const { app, services } = buildApp();
+
+      const res = await request(app).get('/api/productos?search=zapatilla&page=3&limit=5');
+
+      expect(res.status).toBe(200);
+      expect(services.productosService.list).toHaveBeenCalledWith({
+        search: 'zapatilla',
+        page: 3,
+        limit: 5,
+      });
+    });
+
+    it('GET /api/productos responde 400 con una paginación inválida', async () => {
+      const { app, services } = buildApp();
+
+      const res = await request(app).get('/api/productos?page=0');
+
+      expect(res.status).toBe(400);
+      expect(services.productosService.list).not.toHaveBeenCalled();
     });
 
     it('POST /api/productos sin token es público y responde 201', async () => {

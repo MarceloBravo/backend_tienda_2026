@@ -1,6 +1,7 @@
 'use strict';
 
 const ProductosService = require('../../../src/services/productos.service');
+const { PAGINATION } = require('../../../src/config/constants');
 
 /**
  * Crea un modelo de productos simulado.
@@ -10,6 +11,7 @@ const ProductosService = require('../../../src/services/productos.service');
 function createProductoModelMock() {
   return {
     getAll: jest.fn(),
+    getCountAll: jest.fn(),
     getByAsin: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -26,13 +28,46 @@ describe('ProductosService', () => {
     service = new ProductosService(productoModel);
   });
 
-  it('lista productos delegando en el modelo', async () => {
+  it('lista productos devolviendo el listado, el total y la página', async () => {
     productoModel.getAll.mockResolvedValue([{ asin: 'A1' }]);
+    productoModel.getCountAll.mockResolvedValue(25);
 
-    const products = await service.list({ search: null, page: 1, limit: 10 });
+    const result = await service.list({ search: null, page: 1, limit: 10 });
 
-    expect(products).toEqual([{ asin: 'A1' }]);
+    expect(result).toEqual({ data: [{ asin: 'A1' }], totProd: 25, page: 1 });
     expect(productoModel.getAll).toHaveBeenCalledWith(null, 1, 10);
+    expect(productoModel.getCountAll).toHaveBeenCalledWith(null);
+  });
+
+  it('propaga el término de búsqueda al modelo', async () => {
+    productoModel.getAll.mockResolvedValue([]);
+    productoModel.getCountAll.mockResolvedValue(0);
+
+    const result = await service.list({ search: 'zapatilla', page: 3, limit: 5 });
+
+    expect(result).toEqual({ data: [], totProd: 0, page: 3 });
+    expect(productoModel.getAll).toHaveBeenCalledWith('zapatilla', 3, 5);
+    expect(productoModel.getCountAll).toHaveBeenCalledWith('zapatilla');
+  });
+
+  it('aplica la paginación por defecto cuando no se indica', async () => {
+    productoModel.getAll.mockResolvedValue([]);
+    productoModel.getCountAll.mockResolvedValue(0);
+
+    const result = await service.list({});
+
+    expect(result.page).toBe(PAGINATION.DEFAULT_PAGE);
+    expect(productoModel.getAll).toHaveBeenCalledWith(
+      null,
+      PAGINATION.DEFAULT_PAGE,
+      PAGINATION.DEFAULT_LIMIT,
+    );
+  });
+
+  it('propaga el error del modelo al listar', async () => {
+    productoModel.getAll.mockRejectedValue(new Error('db error'));
+
+    await expect(service.list({ search: null, page: 1, limit: 10 })).rejects.toThrow('db error');
   });
 
   it('lanza 404 cuando el producto no existe', async () => {
