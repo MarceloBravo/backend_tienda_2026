@@ -129,6 +129,7 @@ const definition = {
           },
           totProd: { type: 'integer', example: 42, description: 'Total de productos encontrados' },
           page: { type: 'integer', example: 1, description: 'Página actual o solicitada' },
+          totPages: { type: 'integer', example: 5, description: 'Total de páginas resultantes' },
         },
       },
       Error: {

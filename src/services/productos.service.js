@@ -25,8 +25,9 @@ class ProductosService {
    * @param {string|null} [params.search=null] Término de búsqueda.
    * @param {number} [params.page=PAGINATION.DEFAULT_PAGE] Número de página (base 1).
    * @param {number} [params.limit=PAGINATION.DEFAULT_LIMIT] Tamaño de página.
-   * @returns {Promise<{data: object[], totProd: number, page: number}>} Listado de
-   *   la página solicitada, el total de productos encontrados y la página actual.
+   * @returns {Promise<{data: object[], totProd: number, page: number, totPages: number}>} Listado
+   *   de la página solicitada, el total de productos encontrados, la página actual y el
+   *   total de páginas resultantes.
    * @throws {Error} Si la consulta falla.
    */
   async list({ search = null, page = PAGINATION.DEFAULT_PAGE, limit = PAGINATION.DEFAULT_LIMIT }) {
@@ -34,7 +35,22 @@ class ProductosService {
       this.productoModel.getAll(search, page, limit),
       this.productoModel.getCountAll(search),
     ]);
-    return { data: rows, totProd, page };
+    return { data: rows, totProd, totPages: this.calculateTotalPages(totProd, limit) };
+  }
+
+  /**
+   * Calcula la cantidad total de páginas necesarias para mostrar todos los productos
+   * encontrados con el tamaño de página indicado.
+   *
+   * @param {number} totProd Total de productos encontrados.
+   * @param {number} limit Tamaño de página.
+   * @returns {number} Total de páginas resultantes (0 si no hay productos).
+   */
+  calculateTotalPages(totProd, limit) {
+    if (!limit || limit <= 0) {
+      return 0;
+    }
+    return Math.ceil(totProd / limit);
   }
 
   /**

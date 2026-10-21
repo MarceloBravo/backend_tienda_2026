@@ -9,7 +9,7 @@ const ProductosController = require('../../../src/controllers/productos.controll
  */
 function createServiceMock() {
   return {
-    list: jest.fn().mockResolvedValue({ data: [{ asin: 'A1' }], totProd: 1, page: 1 }),
+    list: jest.fn().mockResolvedValue({ data: [{ asin: 'A1' }], totProd: 1, page: 1, totPages: 1 }),
     getByAsin: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -39,7 +39,7 @@ describe('ProductosController', () => {
   });
 
   describe('getAllProducts', () => {
-    it('responde con data, totProd y page en la raíz', async () => {
+    it('responde con data, totProd, page y totPages en la raíz', async () => {
       const res = createResMock();
 
       await controller.getAllProducts({ query: { page: 1, limit: 10 } }, res);
@@ -50,6 +50,7 @@ describe('ProductosController', () => {
         data: [{ asin: 'A1' }],
         totProd: 1,
         page: 1,
+        totPages: 1,
       });
     });
 
@@ -66,12 +67,18 @@ describe('ProductosController', () => {
     });
 
     it('devuelve la página actual o solicitada informada por el servicio', async () => {
-      productosService.list.mockResolvedValue({ data: [], totProd: 0, page: 7 });
+      productosService.list.mockResolvedValue({ data: [], totProd: 0, page: 7, totPages: 0 });
       const res = createResMock();
 
       await controller.getAllProducts({ query: { page: 7, limit: 10 } }, res);
 
-      expect(res.json).toHaveBeenCalledWith({ status: 'success', data: [], totProd: 0, page: 7 });
+      expect(res.json).toHaveBeenCalledWith({
+        status: 'success',
+        data: [],
+        totProd: 0,
+        page: 7,
+        totPages: 0,
+      });
     });
 
     it('propaga el error del servicio', async () => {

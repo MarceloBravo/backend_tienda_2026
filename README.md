@@ -154,12 +154,14 @@ la raíz los metadatos de paginación, por ejemplo `GET /api/productos`:
   "status": "success",
   "data": [{ "asin": "B0CP6DDN1H", "product_title": "Producto" }],
   "totProd": 42,
-  "page": 1
+  "page": 1,
+  "totPages": 5
 }
 ```
 
 Donde `totProd` es la cantidad total de productos encontrados (independiente de la
-paginación) y `page` es la página actual o solicitada.
+paginación), `page` es la página actual o solicitada y `totPages` es el total de
+páginas resultantes (`ceil(totProd / limit)`).
 
 ## Seguridad
 

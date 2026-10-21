@@ -28,15 +28,33 @@ describe('ProductosService', () => {
     service = new ProductosService(productoModel);
   });
 
-  it('lista productos devolviendo el listado, el total y la página', async () => {
+  it('lista productos devolviendo el listado, el total, la página y el total de páginas', async () => {
     productoModel.getAll.mockResolvedValue([{ asin: 'A1' }]);
     productoModel.getCountAll.mockResolvedValue(25);
 
     const result = await service.list({ search: null, page: 1, limit: 10 });
 
-    expect(result).toEqual({ data: [{ asin: 'A1' }], totProd: 25, page: 1 });
+    expect(result).toEqual({ data: [{ asin: 'A1' }], totProd: 25, totPages: 3 });
     expect(productoModel.getAll).toHaveBeenCalledWith(null, 1, 10);
     expect(productoModel.getCountAll).toHaveBeenCalledWith(null);
+  });
+
+  it('calcula el total de páginas redondeando hacia arriba', async () => {
+    productoModel.getAll.mockResolvedValue([]);
+    productoModel.getCountAll.mockResolvedValue(21);
+
+    const result = await service.list({ search: null, page: 1, limit: 10 });
+
+    expect(result.totPages).toBe(3);
+  });
+
+  it('devuelve cero páginas cuando no hay productos', async () => {
+    productoModel.getAll.mockResolvedValue([]);
+    productoModel.getCountAll.mockResolvedValue(0);
+
+    const result = await service.list({ search: null, page: 1, limit: 10 });
+
+    expect(result.totPages).toBe(0);
   });
 
   it('propaga el término de búsqueda al modelo', async () => {
@@ -45,7 +63,7 @@ describe('ProductosService', () => {
 
     const result = await service.list({ search: 'zapatilla', page: 3, limit: 5 });
 
-    expect(result).toEqual({ data: [], totProd: 0, page: 3 });
+    expect(result).toEqual({ data: [], totProd: 0, totPages: 0 });
     expect(productoModel.getAll).toHaveBeenCalledWith('zapatilla', 3, 5);
     expect(productoModel.getCountAll).toHaveBeenCalledWith('zapatilla');
   });
@@ -56,7 +74,6 @@ describe('ProductosService', () => {
 
     const result = await service.list({});
 
-    expect(result.page).toBe(PAGINATION.DEFAULT_PAGE);
     expect(productoModel.getAll).toHaveBeenCalledWith(
       null,
       PAGINATION.DEFAULT_PAGE,
@@ -68,6 +85,19 @@ describe('ProductosService', () => {
     productoModel.getAll.mockRejectedValue(new Error('db error'));
 
     await expect(service.list({ search: null, page: 1, limit: 10 })).rejects.toThrow('db error');
+  });
+
+  describe('calculateTotalPages', () => {
+    it('devuelve el total de páginas redondeando hacia arriba', () => {
+      expect(service.calculateTotalPages(25, 10)).toBe(3);
+      expect(service.calculateTotalPages(20, 10)).toBe(2);
+      expect(service.calculateTotalPages(1, 10)).toBe(1);
+    });
+
+    it('devuelve 0 cuando el tamaño de página no es válido', () => {
+      expect(service.calculateTotalPages(25, 0)).toBe(0);
+      expect(service.calculateTotalPages(25, -5)).toBe(0);
+    });
   });
 
   it('lanza 404 cuando el producto no existe', async () => {

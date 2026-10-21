@@ -40,7 +40,9 @@ function buildApp(overrides = {}) {
       remove: jest.fn().mockResolvedValue(undefined),
     },
     productosService: {
-      list: jest.fn().mockResolvedValue({ data: [{ asin: 'A1' }], totProd: 1, page: 1 }),
+      list: jest
+        .fn()
+        .mockResolvedValue({ data: [{ asin: 'A1' }], totProd: 1, page: 1, totPages: 1 }),
       getByAsin: jest.fn().mockResolvedValue({ asin: 'A1' }),
       create: jest.fn().mockResolvedValue({ asin: 'A1' }),
       update: jest.fn().mockResolvedValue({ asin: 'A1' }),
@@ -205,6 +207,7 @@ describe('API integration', () => {
         data: [{ asin: 'A1' }],
         totProd: 1,
         page: 1,
+        totPages: 1,
       });
     });
 

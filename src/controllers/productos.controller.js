@@ -17,12 +17,13 @@ class ProductosController {
 
   /**
    * Lista productos con búsqueda y paginación. La respuesta incluye el listado
-   * de la página (`data`), el total de productos encontrados (`totProd`) y la
-   * página actual o solicitada (`page`).
+   * de la página (`data`), el total de productos encontrados (`totProd`), la
+   * página actual o solicitada (`page`) y el total de páginas (`totPages`).
    *
    * @param {import('express').Request} req Petición con `search`, `page` y `limit`.
    * @param {import('express').Response} res Respuesta HTTP.
-   * @returns {Promise<import('express').Response>} Respuesta `{ status, data, totProd, page }`.
+   * @returns {Promise<import('express').Response>} Respuesta
+   *   `{ status, data, totProd, page, totPages }`.
    * @throws {Error} Propagado al `errorHandler`.
    */
   async getAllProducts(req, res) {
@@ -31,12 +32,13 @@ class ProductosController {
       data,
       totProd,
       page: currentPage,
+      totPages,
     } = await this.productosService.list({
       search,
       page,
       limit,
     });
-    return sendResponse(res, { data, meta: { totProd, page: currentPage } });
+    return sendResponse(res, { data, meta: { totProd, page: currentPage, totPages } });
   }
 
   /**
