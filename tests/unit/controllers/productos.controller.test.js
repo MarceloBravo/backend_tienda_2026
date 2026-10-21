@@ -1,6 +1,7 @@
 'use strict';
 
 const ProductosController = require('../../../src/controllers/productos.controller');
+const { PAGINATION } = require('../../../src/config/constants');
 
 /**
  * Crea un servicio de productos simulado con el listado paginado por defecto.
@@ -9,7 +10,7 @@ const ProductosController = require('../../../src/controllers/productos.controll
  */
 function createServiceMock() {
   return {
-    list: jest.fn().mockResolvedValue({ data: [{ asin: 'A1' }], totProd: 1, page: 1, totPages: 1 }),
+    list: jest.fn().mockResolvedValue({ data: [{ asin: 'A1' }], totProd: 1, totPages: 1 }),
     getByAsin: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
@@ -66,8 +67,8 @@ describe('ProductosController', () => {
       });
     });
 
-    it('devuelve la página actual o solicitada informada por el servicio', async () => {
-      productosService.list.mockResolvedValue({ data: [], totProd: 0, page: 7, totPages: 0 });
+    it('devuelve la página actual o solicitada', async () => {
+      productosService.list.mockResolvedValue({ data: [], totProd: 0, totPages: 0 });
       const res = createResMock();
 
       await controller.getAllProducts({ query: { page: 7, limit: 10 } }, res);
@@ -79,6 +80,16 @@ describe('ProductosController', () => {
         page: 7,
         totPages: 0,
       });
+    });
+
+    it('devuelve la página por defecto cuando no se solicita', async () => {
+      const res = createResMock();
+
+      await controller.getAllProducts({ query: {} }, res);
+
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ page: PAGINATION.DEFAULT_PAGE }),
+      );
     });
 
     it('propaga el error del servicio', async () => {

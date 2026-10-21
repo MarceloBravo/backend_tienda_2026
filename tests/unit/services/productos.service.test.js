@@ -74,6 +74,7 @@ describe('ProductosService', () => {
 
     const result = await service.list({});
 
+    expect(result).toEqual({ data: [], totProd: 0, totPages: 0 });
     expect(productoModel.getAll).toHaveBeenCalledWith(
       null,
       PAGINATION.DEFAULT_PAGE,

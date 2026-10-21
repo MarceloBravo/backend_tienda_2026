@@ -1,7 +1,7 @@
 'use strict';
 
 const sendResponse = require('../utils/response');
-const { HTTP_STATUS } = require('../config/constants');
+const { HTTP_STATUS, PAGINATION } = require('../config/constants');
 
 /**
  * Controlador de productos. Traduce HTTP ↔ servicio, incorpora el archivo subido
@@ -27,18 +27,9 @@ class ProductosController {
    * @throws {Error} Propagado al `errorHandler`.
    */
   async getAllProducts(req, res) {
-    const { search, page, limit } = req.query;
-    const {
-      data,
-      totProd,
-      page: currentPage,
-      totPages,
-    } = await this.productosService.list({
-      search,
-      page,
-      limit,
-    });
-    return sendResponse(res, { data, meta: { totProd, page: currentPage, totPages } });
+    const { search, page = PAGINATION.DEFAULT_PAGE, limit = PAGINATION.DEFAULT_LIMIT } = req.query;
+    const { data, totProd, totPages } = await this.productosService.list({ search, page, limit });
+    return sendResponse(res, { data, meta: { totProd, page, totPages } });
   }
 
   /**
