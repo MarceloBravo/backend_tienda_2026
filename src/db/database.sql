@@ -2,6 +2,9 @@ CREATE DATABASE IF NOT EXISTS tienda2;
 
 USE tienda2;
 
+DROP TABLE IF EXISTS pagos_transbank;
+DROP TABLE IF EXISTS orden_detalle;
+DROP TABLE IF EXISTS ordenes;
 DROP TABLE IF EXISTS productos;
 
 
@@ -67,3 +70,52 @@ INSERT INTO productos (asin, climate_pledge_friendly, currency, delivery, has_va
 INSERT INTO users (username, nombre, apellido, rol, email, password) VALUES ('pedro', 'Pedro', 'Perez', 'admin','pedro@ejmplo.cl','$2b$10$STEOmj1xT6IXiLgxSQNMgud0f4Z2UouCd2AD8TSLprNoIzm3kqUKO');  -- pwd: 321321
 INSERT INTO users (username, nombre, apellido, rol, email, password) VALUES ('juana', 'Juana', 'Perez', 'supervisor','juana@ejemplo.cl','$2b$10$UabzEAgiIVL3PlvOMRLZAexkWQgzDXYcbZf2K.g8H1X9kMtc.lRZ2');  -- pwd: 123123
 INSERT INTO users (username, nombre, apellido, rol, email, password) VALUES ('Diego123', 'Diego', 'Bravo', 'invitado','diego@ejemplo.cl','$2b$10$T2X5Rbe/dcmVlN5Cs8tfE.mo8wrjDSlTv43NnqMK.L8Nnzkz.kVwS');  -- pwd: 123456
+
+
+CREATE TABLE IF NOT EXISTS ordenes (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    usuario_id INT NULL,
+    buy_order VARCHAR(64) NOT NULL UNIQUE,
+    session_id VARCHAR(128) NOT NULL,
+    monto_total DECIMAL(10,2) NOT NULL,
+    estado ENUM('PENDIENTE','PAGADO','RECHAZADO','CANCELADO','ANULADO') NOT NULL DEFAULT 'PENDIENTE',
+    direccion_envio TEXT NULL,
+    metodo_pago ENUM('WEBPAY') NOT NULL DEFAULT 'WEBPAY',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_ordenes_usuario FOREIGN KEY (usuario_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS orden_detalle (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    orden_id INT NOT NULL,
+    producto_id VARCHAR(255) NULL,
+    asin VARCHAR(255) NULL,
+    cantidad INT UNSIGNED NOT NULL DEFAULT 1,
+    precio_unitario DECIMAL(10,2) NOT NULL,
+    subtotal DECIMAL(10,2) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_orden_detalle_orden FOREIGN KEY (orden_id) REFERENCES ordenes(id) ON DELETE CASCADE,
+    CONSTRAINT fk_orden_detalle_producto FOREIGN KEY (producto_id) REFERENCES productos(asin) ON DELETE SET NULL
+);
+
+CREATE TABLE IF NOT EXISTS pagos_transbank (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    orden_id INT NOT NULL UNIQUE,
+    token_ws VARCHAR(255) NULL UNIQUE,
+    buy_order VARCHAR(64) NOT NULL,
+    session_id VARCHAR(128) NOT NULL,
+    amount DECIMAL(10,2) NOT NULL,
+    status ENUM('INICIADO','AUTORIZADO','RECHAZADO','TIMEOUT','ERROR') NOT NULL DEFAULT 'INICIADO',
+    response_code INT NULL,
+    authorization_code VARCHAR(64) NULL,
+    payment_type_code VARCHAR(16) NULL,
+    installments_number INT NULL,
+    card_detail JSON NULL,
+    vci VARCHAR(32) NULL,
+    transaction_date VARCHAR(64) NULL,
+    raw_response JSON NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pagos_transbank_orden FOREIGN KEY (orden_id) REFERENCES ordenes(id) ON DELETE CASCADE
+);

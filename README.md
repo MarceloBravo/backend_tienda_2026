@@ -144,6 +144,10 @@ Las rutas protegidas se pueden probar con el botón **Authorize** usando un toke
 | POST | `/api/productos` | Público | Crea un producto |
 | PUT | `/api/productos/:id` | Público | Actualiza un producto |
 | DELETE | `/api/productos/:id` | Público | Elimina un producto |
+| POST | `/api/pagos/crear-orden` | Autenticado | Crea una orden calculando totales desde la BD |
+| POST | `/api/pagos/iniciar` | Autenticado | Inicia la transacción con Webpay Plus |
+| POST/GET | `/api/pagos/retorno` | Público | Retorno de Transbank; confirma el pago |
+| GET | `/api/pagos/estado/:ordenId` | Autenticado | Consulta el estado de la orden y su pago |
 
 Las respuestas exitosas usan el formato uniforme `{ status, message, data }` y los
 errores `{ status, statusCode, message, code }`. Los listados paginados agregan en
@@ -162,6 +166,24 @@ la raíz los metadatos de paginación, por ejemplo `GET /api/productos`:
 Donde `totProd` es la cantidad total de productos encontrados (independiente de la
 paginación), `page` es la página actual o solicitada y `totPages` es el total de
 páginas resultantes (`ceil(totProd / limit)`).
+
+## Pagos con Redcompra (Webpay Plus)
+
+El flujo de pago usa el SDK `transbank-sdk` y requiere las variables
+`TRANSBANK_COMMERCE_CODE`, `TRANSBANK_API_KEY`, `TRANSBANK_ENVIRONMENT`,
+`BACKEND_URL` y `TRANSBANK_RETURN_URL` (ver `.env.ejemplo`).
+
+1. `POST /api/pagos/crear-orden` con `{ items: [{ asin, cantidad }] }`. El backend
+   valida stock y calcula el total con los precios de la base de datos.
+2. `POST /api/pagos/iniciar` con `{ ordenId }`. Devuelve `{ url, token }` para que el
+   frontend redirija al cliente al formulario de Webpay.
+3. Transbank redirige a `TRANSBANK_RETURN_URL` (`/api/pagos/retorno`) con `token_ws`.
+   El backend ejecuta el `commit`, actualiza la orden (`PAGADO`/`RECHAZADO`) y
+   responde con el resultado o redirige a `FRONTEND_URL/pago/resultado`.
+
+En ambiente de integración se usan las credenciales de prueba del SDK; para
+producción configure `TRANSBANK_ENVIRONMENT=production` y las credenciales reales.
+El monto nunca se toma del cliente: se calcula desde `productos.product_price`.
 
 ## Seguridad
 

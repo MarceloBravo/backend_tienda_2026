@@ -40,6 +40,17 @@ class Database {
   }
 
   /**
+   * Obtiene una conexión del pool para operaciones transaccionales.
+   * El llamador es responsable de liberar la conexión con `release()`.
+   *
+   * @returns {Promise<import('mysql2').PoolConnection>} Conexión del pool.
+   * @throws {Error} Si no se puede obtener una conexión.
+   */
+  async getConnection() {
+    return this.pool.getConnection();
+  }
+
+  /**
    * Comprueba que la base de datos responde (usado por el health check).
    *
    * @returns {Promise<boolean>} `true` si la conexión es válida.

@@ -2,12 +2,17 @@
 
 const UsersModel = require('./models/users.model');
 const ProductoModel = require('./models/productos.model');
+const OrdenesModel = require('./models/ordenes.model');
+const PagosModel = require('./models/pagos.model');
 const LoginService = require('./services/login.service');
 const UsersService = require('./services/users.service');
 const ProductosService = require('./services/productos.service');
+const OrdenesService = require('./services/ordenes.service');
+const TransbankService = require('./services/transbank.service');
 const LoginController = require('./controllers/login.controller');
 const UsersController = require('./controllers/users.controller');
 const ProductosController = require('./controllers/productos.controller');
+const TransbankController = require('./controllers/transbank.controller');
 
 /**
  * Composition root: construye el grafo de dependencias (modelos → servicios →
@@ -20,11 +25,17 @@ const ProductosController = require('./controllers/productos.controller');
 function createContainer(database) {
   const usersModel = new UsersModel(database);
   const productoModel = new ProductoModel(database);
+  const ordenesModel = new OrdenesModel(database);
+  const pagosModel = new PagosModel(database);
+
+  const ordenesService = new OrdenesService(ordenesModel, productoModel);
+  const transbankService = new TransbankService(ordenesModel, pagosModel);
 
   return {
     loginController: new LoginController(new LoginService(usersModel)),
     usersController: new UsersController(new UsersService(usersModel)),
     productosController: new ProductosController(new ProductosService(productoModel)),
+    transbankController: new TransbankController(ordenesService, transbankService, pagosModel),
   };
 }
 

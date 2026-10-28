@@ -7,6 +7,7 @@ const { HTTP_STATUS } = require('../config/constants');
 const createLoginRouter = require('./login.routes');
 const createUsersRouter = require('./users.routes');
 const createProductosRouter = require('./productos.routes');
+const createPagosRouter = require('./pagos.routes');
 
 /**
  * Comprueba el estado de la base de datos sin lanzar excepción.
@@ -62,6 +63,9 @@ function createApiRouter({ controllers, database }) {
   router.use('/api', createLoginRouter(controllers.loginController));
   router.use('/api', createUsersRouter(controllers.usersController));
   router.use('/api', createProductosRouter(controllers.productosController));
+  if (controllers.transbankController) {
+    router.use('/api', createPagosRouter(controllers.transbankController));
+  }
 
   return router;
 }

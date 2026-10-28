@@ -45,7 +45,6 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          script_stop: true
           script: |
             set -e
             APP_DIR=/home/opc/tienda
@@ -60,7 +59,8 @@ jobs:
             git fetch -q --depth 1 origin main
             git checkout -q -f -B main FETCH_HEAD
 
-            docker compose -f docker-compose.prod.yml up -d --build
+            docker compose -f docker-compose.prod.yml build --pull
+            docker compose -f docker-compose.prod.yml up -d
 
             echo "Waiting for health check..."
             for i in $(seq 1 30); do
