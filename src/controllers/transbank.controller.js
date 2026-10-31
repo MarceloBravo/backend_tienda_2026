@@ -80,9 +80,20 @@ class TransbankController {
    */
   async retorno(req, res) {
     const tokenWs = this.extraerToken(req);
-    const resultado = this.esCancelacion(req)
-      ? await this.transbankService.cancelarTransaccion(tokenWs)
-      : await this.transbankService.confirmarTransaccion(tokenWs);
+    let resultado;
+
+    if (this.esTimeout(req)) {
+      resultado = await this.transbankService.manejarTimeout({
+        buyOrder: this.extraerOrdenCompra(req),
+      });
+    } else if (this.esCancelacion(req)) {
+      resultado = await this.transbankService.cancelarTransaccion(
+        tokenWs,
+        this.extraerOrdenCompra(req),
+      );
+    } else {
+      resultado = await this.transbankService.confirmarTransaccion(tokenWs);
+    }
 
     if (this.debeRedirigirAlFrontend(req)) {
       return res.redirect(this.construirUrlFrontend(resultado));
@@ -90,11 +101,44 @@ class TransbankController {
 
     return sendResponse(res, {
       statusCode: HTTP_STATUS.OK,
-      message: resultado.autorizado
-        ? 'Pago autorizado exitosamente.'
-        : 'Pago rechazado o no autorizado.',
+      message: this.construirMensaje(resultado),
       data: resultado,
     });
+  }
+
+  /**
+   * Determina si el retorno corresponde a un timeout de Webpay.
+   * Transbank envía `TBK_ID_SESION` y `TBK_ORDEN_COMPRA`, sin `token_ws` ni
+   * `TBK_TOKEN`, cuando el usuario no completa el pago a tiempo.
+   *
+   * @param {import('express').Request} req Petición HTTP.
+   * @returns {boolean} `true` si el retorno representa un timeout.
+   */
+  esTimeout(req) {
+    const body = req.body || {};
+    const query = req.query || {};
+    const tieneTokenWs = Boolean(body.token_ws || query.token_ws);
+    const tieneTbkToken = Boolean(body.TBK_TOKEN || query.TBK_TOKEN);
+    const tieneOrdenCompra = Boolean(body.TBK_ORDEN_COMPRA || query.TBK_ORDEN_COMPRA);
+    return !tieneTokenWs && !tieneTbkToken && tieneOrdenCompra;
+  }
+
+  /**
+   * Construye el mensaje de respuesta según el resultado del pago.
+   *
+   * @param {object} resultado Resultado de la operación.
+   * @returns {string} Mensaje legible.
+   */
+  construirMensaje(resultado) {
+    if (resultado.timeout) {
+      return 'Tiempo de pago agotado.';
+    }
+    if (resultado.cancelado) {
+      return 'Pago cancelado por el usuario.';
+    }
+    return resultado.autorizado
+      ? 'Pago autorizado exitosamente.'
+      : 'Pago rechazado o no autorizado.';
   }
 
   /**
@@ -141,7 +185,17 @@ class TransbankController {
    * @returns {string|undefined} Token Webpay si está presente.
    */
   extraerToken(req) {
-    return req.body?.token_ws || req.query?.token_ws || req.body?.TBK_TOKEN;
+    return req.body?.token_ws || req.query?.token_ws || req.body?.TBK_TOKEN || req.query?.TBK_TOKEN;
+  }
+
+  /**
+   * Extrae el buy order reportado por Transbank en el retorno.
+   *
+   * @param {import('express').Request} req Petición HTTP.
+   * @returns {string|undefined} Buy order si está presente.
+   */
+  extraerOrdenCompra(req) {
+    return req.body?.TBK_ORDEN_COMPRA || req.query?.TBK_ORDEN_COMPRA;
   }
 
   /**
@@ -173,10 +227,21 @@ class TransbankController {
    */
   construirUrlFrontend(resultado) {
     const base = this.obtenerFrontendUrl().replace(/\/$/, '');
-    const estado = resultado.autorizado ? 'success' : 'fail';
+    const estado = this.obtenerEstadoResultado(resultado);
     const buyOrder = resultado.buyOrder || '';
     const ordenId = resultado.ordenId || '';
     return `${base}/pago/resultado?estado=${estado}&buyOrder=${buyOrder}&ordenId=${ordenId}`;
+  }
+
+  /**
+   * Traduce el resultado a un estado apto para la URL del frontend.
+   *
+   * @param {object} resultado Resultado de la operación.
+   * @returns {'success'|'fail'|'timeout'} Estado del resultado.
+   */
+  obtenerEstadoResultado(resultado) {
+    if (resultado.timeout) return 'timeout';
+    return resultado.autorizado ? 'success' : 'fail';
   }
 }
 

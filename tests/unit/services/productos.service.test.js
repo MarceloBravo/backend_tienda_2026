@@ -113,9 +113,10 @@ describe('ProductosService', () => {
 
     const product = await service.create({
       asin: 'A1',
-      currency: 'USD',
+      currency: 'CLP',
       product_price: 10,
       product_title: 'T',
+      stock: 25,
       columna_inyectada: 'x',
     });
 
@@ -123,13 +124,14 @@ describe('ProductosService', () => {
     const payload = productoModel.create.mock.calls[0][0];
     expect(payload.columna_inyectada).toBeUndefined();
     expect(payload.asin).toBe('A1');
+    expect(payload.stock).toBe(25);
   });
 
   it('traduce el duplicado de asin a un error 409', async () => {
     productoModel.create.mockRejectedValue({ code: 'ER_DUP_ENTRY' });
 
     await expect(
-      service.create({ asin: 'A1', currency: 'USD', product_price: 1, product_title: 'T' }),
+      service.create({ asin: 'A1', currency: 'CLP', product_price: 1, product_title: 'T' }),
     ).rejects.toMatchObject({ statusCode: 409 });
   });
 
@@ -137,11 +139,12 @@ describe('ProductosService', () => {
     productoModel.getByAsin.mockResolvedValue({ asin: 'A1', product_title: 'T' });
     productoModel.update.mockResolvedValue({ affectedRows: 1 });
 
-    await service.update('A1', { product_title: 'Nuevo', asin: 'OTRO' });
+    await service.update('A1', { product_title: 'Nuevo', asin: 'OTRO', stock: 8 });
 
     const [, payload] = productoModel.update.mock.calls[0];
     expect(payload.asin).toBeUndefined();
     expect(payload.product_title).toBe('Nuevo');
+    expect(payload.stock).toBe(8);
   });
 
   it('lanza 404 si la actualización no afecta filas', async () => {

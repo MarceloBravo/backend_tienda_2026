@@ -3,6 +3,7 @@
 const { randomUUID } = require('crypto');
 const AppError = require('../errors/AppError');
 const { HTTP_STATUS } = require('../config/constants');
+const { generarBuyOrder } = require('../utils/buyOrder');
 
 /**
  * Servicio de órdenes.
@@ -20,17 +21,6 @@ class OrdenesService {
   constructor(ordenesModel, productosModel) {
     this.ordenesModel = ordenesModel;
     this.productosModel = productosModel;
-  }
-
-  /**
-   * Genera un buy_order único.
-   *
-   * @returns {string} Buy order generado.
-   */
-  generarBuyOrder() {
-    const timestamp = Date.now().toString(36).toUpperCase();
-    const uuid = randomUUID().replace(/-/g, '').slice(0, 8).toUpperCase();
-    return `ORD-${timestamp}-${uuid}`;
   }
 
   /**
@@ -70,7 +60,7 @@ class OrdenesService {
 
     const orden = await this.ordenesModel.crearOrdenConDetalle({
       usuarioId,
-      buyOrder: this.generarBuyOrder(),
+      buyOrder: generarBuyOrder(),
       sessionId: this.generarSessionId(usuarioId),
       montoTotal: Math.round(montoTotal),
       items: itemsValidados,

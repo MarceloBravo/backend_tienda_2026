@@ -30,6 +30,7 @@ describe('TransbankController', () => {
       iniciarTransaccion: jest.fn(),
       confirmarTransaccion: jest.fn(),
       cancelarTransaccion: jest.fn(),
+      manejarTimeout: jest.fn(),
     };
     pagosModel = { obtenerPorOrdenId: jest.fn() };
     controller = new TransbankController(ordenesService, transbankService, pagosModel);
@@ -111,8 +112,56 @@ describe('TransbankController', () => {
 
     await controller.retorno(req, res);
 
-    expect(transbankService.cancelarTransaccion).toHaveBeenCalledWith('tok');
+    expect(transbankService.cancelarTransaccion).toHaveBeenCalledWith('tok', undefined);
     expect(transbankService.confirmarTransaccion).not.toHaveBeenCalled();
+  });
+
+  it('pasa el buy_order a la cancelación cuando Transbank lo envía', async () => {
+    transbankService.cancelarTransaccion.mockResolvedValue({ autorizado: false, cancelado: true });
+    const res = createResMock();
+    const req = {
+      body: { TBK_TOKEN: 'tok', TBK_ORDEN_COMPRA: 'ORD-9' },
+      query: {},
+      accepts: jest.fn().mockReturnValue('json'),
+    };
+
+    await controller.retorno(req, res);
+
+    expect(transbankService.cancelarTransaccion).toHaveBeenCalledWith('tok', 'ORD-9');
+  });
+
+  it('maneja el timeout cuando llega TBK_ORDEN_COMPRA sin token', async () => {
+    transbankService.manejarTimeout.mockResolvedValue({ autorizado: false, timeout: true });
+    const res = createResMock();
+    const req = {
+      body: { TBK_ID_SESION: 'S-1', TBK_ORDEN_COMPRA: 'ORD-7' },
+      query: {},
+      accepts: jest.fn().mockReturnValue('json'),
+    };
+
+    await controller.retorno(req, res);
+
+    expect(transbankService.manejarTimeout).toHaveBeenCalledWith({ buyOrder: 'ORD-7' });
+    expect(transbankService.confirmarTransaccion).not.toHaveBeenCalled();
+    expect(transbankService.cancelarTransaccion).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: 'Tiempo de pago agotado.' }),
+    );
+  });
+
+  it('confirma cuando llegan token_ws y TBK_TOKEN juntos', async () => {
+    transbankService.confirmarTransaccion.mockResolvedValue({ autorizado: false });
+    const res = createResMock();
+    const req = {
+      body: { token_ws: 'tok', TBK_TOKEN: 'tbk' },
+      query: {},
+      accepts: jest.fn().mockReturnValue('json'),
+    };
+
+    await controller.retorno(req, res);
+
+    expect(transbankService.confirmarTransaccion).toHaveBeenCalledWith('tok');
+    expect(transbankService.cancelarTransaccion).not.toHaveBeenCalled();
   });
 
   it('consulta el estado de la orden y su pago', async () => {

@@ -1,5 +1,7 @@
 'use strict';
 
+const { determinarEstadoPago } = require('../utils/transbank');
+
 /**
  * Modelo para gestión de pagos Transbank.
  * Responsabilidad: Acceso a datos de pagos_transbank.
@@ -62,6 +64,22 @@ class PagosModel {
   }
 
   /**
+   * Obtiene un pago por buy_order. Se usa para reconciliar retornos de
+   * timeout, donde Transbank no envía `token_ws` pero sí el buy_order del
+   * intento.
+   *
+   * @param {string} buyOrder Buy order enviado a Webpay.
+   * @returns {Promise<object|null>} Pago encontrado o null.
+   */
+  async obtenerPorBuyOrder(buyOrder) {
+    const [rows] = await this.database.query('SELECT * FROM pagos_transbank WHERE buy_order = ?', [
+      buyOrder,
+    ]);
+    if (!rows || rows.length === 0) return null;
+    return rows[0];
+  }
+
+  /**
    * Obtiene un pago por orden_id.
    *
    * @param {number} ordenId ID de la orden.
@@ -94,7 +112,7 @@ class PagosModel {
       transaction_date: transactionDate,
     } = response;
 
-    const estado = this.determinarEstado(response);
+    const estado = determinarEstadoPago(response);
 
     await this.database.query(
       `UPDATE pagos_transbank 
@@ -129,29 +147,6 @@ class PagosModel {
       status,
       ordenId,
     ]);
-  }
-
-  /**
-   * Determina el estado interno a partir de la respuesta de Transbank.
-   *
-   * @param {object} response Respuesta de `commit`.
-   * @returns {string} Estado del pago (`AUTORIZADO`, `RECHAZADO` o `INICIADO`).
-   */
-  determinarEstado(response) {
-    if (response.status === 'AUTHORIZED' || response.response_code === 0) {
-      return 'AUTORIZADO';
-    }
-    if (response.status === 'FAILED') {
-      return 'RECHAZADO';
-    }
-    if (
-      response.response_code !== undefined &&
-      response.response_code !== null &&
-      response.response_code !== 0
-    ) {
-      return 'RECHAZADO';
-    }
-    return 'INICIADO';
   }
 }
 

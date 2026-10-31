@@ -3,6 +3,9 @@
 const { getWebpayTransaction, getReturnUrl } = require('../config/transbank');
 const AppError = require('../errors/AppError');
 const { HTTP_STATUS } = require('../config/constants');
+const { generarBuyOrderIntento } = require('../utils/buyOrder');
+const { ESTADOS_PAGO, esTransaccionAutorizada } = require('../utils/transbank');
+const logger = require('../utils/logger');
 
 /**
  * Servicio de Transbank Webpay Plus.
@@ -23,20 +26,24 @@ class TransbankService {
 
   /**
    * Inicia una transacción con Webpay Plus.
+   * Cada intento usa un `buy_order` derivado y único para no reutilizar el de
+   * la orden ni el de un intento anterior.
    *
    * @param {object} orden Datos de la orden.
    * @param {number} orden.id ID de la orden.
-   * @param {string} orden.buy_order Buy order.
+   * @param {string} orden.buy_order Buy order estable de la orden.
    * @param {string} orden.session_id Session ID.
    * @param {number} orden.monto_total Monto total.
-   * @returns {Promise<object>} Respuesta con `url` y `token`.
+   * @returns {Promise<object>} Respuesta con `url`, `token`, `buyOrder` y `amount`.
    * @throws {AppError} Si los datos son inválidos o Transbank falla.
    */
   async iniciarTransaccion(orden) {
     try {
       const datos = this.normalizarDatosOrden(orden);
+      const buyOrderIntento = generarBuyOrderIntento(datos.buyOrder);
+
       const response = await this.transaction.create(
-        datos.buyOrder,
+        buyOrderIntento,
         datos.sessionId,
         datos.amount,
         getReturnUrl(),
@@ -46,7 +53,7 @@ class TransbankService {
       await this.pagosModel.crearOActualizarAlIniciar({
         ordenId: orden.id,
         tokenWs: response.token,
-        buyOrder: datos.buyOrder,
+        buyOrder: buyOrderIntento,
         sessionId: datos.sessionId,
         amount: datos.amount,
       });
@@ -54,7 +61,7 @@ class TransbankService {
       return {
         url: response.url,
         token: response.token,
-        buyOrder: datos.buyOrder,
+        buyOrder: buyOrderIntento,
         amount: datos.amount,
       };
     } catch (error) {
@@ -66,7 +73,9 @@ class TransbankService {
   }
 
   /**
-   * Confirma una transacción con Webpay Plus.
+   * Confirma una transacción con Webpay Plus. Si el pago ya fue rechazado,
+   * reintenta la liberación de stock (idempotente) para recuperar un fallo
+   * previo en esa transacción.
    *
    * @param {string} tokenWs Token de la transacción.
    * @returns {Promise<object>} Resultado de la confirmación.
@@ -83,7 +92,12 @@ class TransbankService {
         throw new AppError('Transacción no encontrada.', HTTP_STATUS.NOT_FOUND);
       }
 
-      if (pago.status === 'AUTORIZADO' || pago.status === 'RECHAZADO') {
+      if (pago.status === ESTADOS_PAGO.AUTORIZADO) {
+        return this.construirResultadoYaProcesado(pago);
+      }
+
+      if (pago.status === ESTADOS_PAGO.RECHAZADO) {
+        await this.ordenesModel.liberarStockDeOrden(pago.orden_id, 'RECHAZADO');
         return this.construirResultadoYaProcesado(pago);
       }
 
@@ -95,30 +109,165 @@ class TransbankService {
   }
 
   /**
-   * Marca una transacción como cancelada por el usuario (retorno sin `token_ws`).
+   * Consulta el estado real de una transacción en Transbank.
+   * Se usa para reconciliar retornos ambiguos o reintentos de `commit`.
+   *
+   * @param {string} tokenWs Token de la transacción.
+   * @returns {Promise<object>} Respuesta de `transaction.status`.
+   * @throws {AppError} Si falta el token o Transbank falla.
+   */
+  async consultarEstadoTransaccion(tokenWs) {
+    if (!tokenWs) {
+      throw new AppError('Token de transacción requerido.', HTTP_STATUS.BAD_REQUEST);
+    }
+    try {
+      return await this.transaction.status(tokenWs);
+    } catch (error) {
+      throw new AppError(
+        'No se pudo consultar el estado de la transacción con Transbank.',
+        HTTP_STATUS.BAD_GATEWAY,
+        undefined,
+        { cause: error },
+      );
+    }
+  }
+
+  /**
+   * Consulta el estado tolerando fallos. Devuelve `null` si Transbank no
+   * responde, para que el llamador pueda continuar con el estado persistido.
+   *
+   * @param {string} tokenWs Token de la transacción.
+   * @returns {Promise<object|null>} Respuesta de `status` o `null`.
+   */
+  async consultarEstadoSeguro(tokenWs) {
+    try {
+      return await this.consultarEstadoTransaccion(tokenWs);
+    } catch (error) {
+      logger.warn({ err: error }, 'No fue posible consultar el estado en Transbank.');
+      return null;
+    }
+  }
+
+  /**
+   * Marca una transacción como cancelada por el usuario (retorno con
+   * `TBK_TOKEN` y sin `token_ws`). Antes de cancelar consulta el estado real:
+   * si Transbank ya la autorizó, se persiste como pagada.
    *
    * @param {string} tokenWs Token de la transacción cancelada.
-   * @returns {Promise<object>} Resultado de la cancelación.
+   * @param {string} [buyOrder] Buy order del intento, útil si el token no coincide.
+   * @returns {Promise<object>} Resultado de la cancelación o del pago autorizado.
    * @throws {AppError} Si falta el token.
    */
-  async cancelarTransaccion(tokenWs) {
+  async cancelarTransaccion(tokenWs, buyOrder) {
     if (!tokenWs) {
       throw new AppError('Token de transacción requerido.', HTTP_STATUS.BAD_REQUEST);
     }
 
-    const pago = await this.pagosModel.obtenerPorToken(tokenWs);
+    const pago =
+      (await this.pagosModel.obtenerPorToken(tokenWs)) ||
+      (buyOrder ? await this.pagosModel.obtenerPorBuyOrder(buyOrder) : null);
+
+    if (!pago) {
+      return this.construirResultadoCancelacion(null, buyOrder);
+    }
+
+    if (pago.status === ESTADOS_PAGO.AUTORIZADO) {
+      return this.construirResultadoYaProcesado(pago);
+    }
+
+    const estado = await this.consultarEstadoSeguro(tokenWs);
+    if (esTransaccionAutorizada(estado)) {
+      return this.persistirResultadoCommit(estado, pago);
+    }
+
+    await this.pagosModel.actualizarEstado(pago.orden_id, ESTADOS_PAGO.ERROR);
+    await this.ordenesModel.liberarStockDeOrden(pago.orden_id, 'CANCELADO');
+    return this.construirResultadoCancelacion(pago, buyOrder);
+  }
+
+  /**
+   * Maneja el retorno de timeout de Webpay: llega `TBK_ORDEN_COMPRA` sin
+   * `token_ws` ni `TBK_TOKEN`. Busca el pago por buy_order, consulta el estado
+   * si hay token guardado y, si no fue autorizado, marca `TIMEOUT` y cancela la
+   * orden.
+   *
+   * @param {object} datos Datos del retorno.
+   * @param {string} datos.buyOrder Buy order reportado por Transbank.
+   * @returns {Promise<object>} Resultado del timeout.
+   * @throws {AppError} Si falta el buy order.
+   */
+  async manejarTimeout({ buyOrder } = {}) {
+    if (!buyOrder) {
+      throw new AppError('Buy order requerido para manejar el timeout.', HTTP_STATUS.BAD_REQUEST);
+    }
+
+    const pago = await this.pagosModel.obtenerPorBuyOrder(buyOrder);
     if (pago) {
-      await this.pagosModel.actualizarEstado(pago.orden_id, 'ERROR');
-      await this.ordenesModel.actualizarEstado(pago.orden_id, 'CANCELADO');
+      return this.resolverPagoEnTimeout(pago);
+    }
+
+    return this.cancelarOrdenPorTimeout(buyOrder);
+  }
+
+  /**
+   * Resuelve un timeout cuando existe un pago registrado para el buy_order.
+   * Consulta el estado real antes de descartar un pago autorizado.
+   *
+   * @param {object} pago Registro de pago encontrado.
+   * @returns {Promise<object>} Resultado del timeout o del pago autorizado.
+   */
+  async resolverPagoEnTimeout(pago) {
+    if (pago.status === ESTADOS_PAGO.AUTORIZADO) {
+      return this.construirResultadoYaProcesado(pago);
+    }
+
+    const estado = pago.token_ws ? await this.consultarEstadoSeguro(pago.token_ws) : null;
+    if (esTransaccionAutorizada(estado)) {
+      return this.persistirResultadoCommit(estado, pago);
+    }
+
+    await this.pagosModel.actualizarEstado(pago.orden_id, ESTADOS_PAGO.TIMEOUT);
+    await this.ordenesModel.liberarStockDeOrden(pago.orden_id, 'CANCELADO');
+    return {
+      autorizado: false,
+      cancelado: false,
+      timeout: true,
+      yaProcesado: false,
+      ordenId: pago.orden_id,
+      buyOrder: pago.buy_order,
+      monto: pago.amount,
+    };
+  }
+
+  /**
+   * Cancela la orden asociada a un timeout cuando no existe pago registrado.
+   *
+   * @param {string} buyOrder Buy order reportado por Transbank.
+   * @returns {Promise<object>} Resultado del timeout.
+   */
+  async cancelarOrdenPorTimeout(buyOrder) {
+    const orden = await this.ordenesModel.obtenerPorBuyOrder(buyOrder);
+    if (orden) {
+      await this.ordenesModel.liberarStockDeOrden(orden.id, 'CANCELADO');
+      return {
+        autorizado: false,
+        cancelado: false,
+        timeout: true,
+        yaProcesado: false,
+        ordenId: orden.id,
+        buyOrder: orden.buy_order,
+        monto: orden.monto_total,
+      };
     }
 
     return {
       autorizado: false,
-      cancelado: true,
-      yaProcesado: Boolean(pago),
-      ordenId: pago?.orden_id || null,
-      buyOrder: pago?.buy_order || null,
-      monto: pago?.amount || null,
+      cancelado: false,
+      timeout: true,
+      yaProcesado: false,
+      ordenId: null,
+      buyOrder,
+      monto: null,
     };
   }
 
@@ -168,14 +317,54 @@ class TransbankService {
     let response;
     try {
       response = await this.transaction.commit(tokenWs);
-    } catch (_commitError) {
-      return this.construirResultadoYaProcesado(pago);
+    } catch (commitError) {
+      return this.reconciliarTrasFalloCommit(tokenWs, pago, commitError);
     }
 
+    return this.persistirResultadoCommit(response, pago);
+  }
+
+  /**
+   * Reconciliación tras un fallo de `commit` (p. ej. doble retorno).
+   * Consulta el estado real: si está autorizado se marca `PAGADO`, si falló se
+   * marca `RECHAZADO`; si no se puede determinar, se devuelve lo persistido.
+   *
+   * @param {string} tokenWs Token de la transacción.
+   * @param {object} pago Registro de pago existente.
+   * @param {Error} commitError Error original del commit.
+   * @returns {Promise<object>} Resultado reconciliado.
+   */
+  async reconciliarTrasFalloCommit(tokenWs, pago, commitError) {
+    logger.warn(
+      { err: commitError, ordenId: pago.orden_id },
+      'Commit de Webpay falló; consultando estado real.',
+    );
+
+    const estado = await this.consultarEstadoSeguro(tokenWs);
+    if (esTransaccionAutorizada(estado) || estado?.status === 'FAILED') {
+      return this.persistirResultadoCommit(estado, pago);
+    }
+
+    return this.construirResultadoYaProcesado(pago);
+  }
+
+  /**
+   * Persiste una respuesta de Transbank (commit o status) y sincroniza la
+   * orden según la regla centralizada de autorización.
+   *
+   * @param {object} response Respuesta de Transbank.
+   * @param {object} pago Registro de pago existente.
+   * @returns {Promise<object>} Resultado de la confirmación.
+   */
+  async persistirResultadoCommit(response, pago) {
     await this.pagosModel.actualizarConCommit(pago.orden_id, response);
 
-    const autorizado = this.esAutorizado(response);
-    await this.ordenesModel.actualizarEstado(pago.orden_id, autorizado ? 'PAGADO' : 'RECHAZADO');
+    const autorizado = esTransaccionAutorizada(response);
+    if (autorizado) {
+      await this.ordenesModel.actualizarEstado(pago.orden_id, 'PAGADO');
+    } else {
+      await this.ordenesModel.liberarStockDeOrden(pago.orden_id, 'RECHAZADO');
+    }
 
     const orden = await this.ordenesModel.obtenerPorId(pago.orden_id);
     const pagoActualizado = await this.pagosModel.obtenerPorOrdenId(pago.orden_id);
@@ -187,17 +376,6 @@ class TransbankService {
       orden,
       pagoActualizado,
     });
-  }
-
-  /**
-   * Determina si la respuesta de commit corresponde a una transacción autorizada.
-   *
-   * @param {object} response Respuesta de `commit`.
-   * @returns {boolean} `true` si fue autorizada.
-   */
-  esAutorizado(response) {
-    if (!response) return false;
-    return response.status === 'AUTHORIZED' || response.response_code === 0;
   }
 
   /**
@@ -214,6 +392,8 @@ class TransbankService {
   construirResultadoConfirmacion({ response, pago, autorizado, orden, pagoActualizado }) {
     return {
       autorizado,
+      cancelado: false,
+      timeout: false,
       yaProcesado: false,
       ordenId: pago.orden_id,
       buyOrder: response.buy_order || pago.buy_order,
@@ -232,6 +412,25 @@ class TransbankService {
   }
 
   /**
+   * Construye el resultado de una cancelación.
+   *
+   * @param {object|null} pago Registro de pago o `null` si no se encontró.
+   * @param {string} [buyOrder] Buy order reportado por Transbank.
+   * @returns {object} Resultado de la cancelación.
+   */
+  construirResultadoCancelacion(pago, buyOrder) {
+    return {
+      autorizado: false,
+      cancelado: true,
+      timeout: false,
+      yaProcesado: Boolean(pago),
+      ordenId: pago?.orden_id || null,
+      buyOrder: pago?.buy_order || buyOrder || null,
+      monto: pago?.amount || null,
+    };
+  }
+
+  /**
    * Construye el resultado para una transacción ya procesada (idempotencia).
    *
    * @param {object} pago Registro de pago.
@@ -243,7 +442,9 @@ class TransbankService {
     const pagoFinal = pagoActualizado || pago;
 
     return {
-      autorizado: pagoFinal.status === 'AUTORIZADO',
+      autorizado: pagoFinal.status === ESTADOS_PAGO.AUTORIZADO,
+      cancelado: false,
+      timeout: pagoFinal.status === ESTADOS_PAGO.TIMEOUT,
       yaProcesado: true,
       ordenId: pago.orden_id,
       buyOrder: pago.buy_order,

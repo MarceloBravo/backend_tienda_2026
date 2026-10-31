@@ -12,6 +12,25 @@ const { setupSwagger } = require('./config/swagger');
 
 const ALLOWED_METHODS = ['GET', 'POST', 'PUT', 'DELETE'];
 const ALLOWED_HEADERS = ['Content-Type', 'Authorization'];
+const UPLOADS_PATH = 'uploads';
+const CROSS_ORIGIN_RESOURCE_POLICY = 'Cross-Origin-Resource-Policy';
+
+/**
+ * Permite embeber los recursos estáticos de `/uploads` desde orígenes distintos
+ * al del backend. Helmet aplica `Cross-Origin-Resource-Policy: same-origin` por
+ * defecto, lo que hace que el navegador bloquee las imágenes cargadas por un
+ * `<img>` cuando el frontend corre en otro puerto u host (por ejemplo
+ * `http://localhost:3001`), incluso si CORS está bien configurado.
+ *
+ * @param {import('express').Request} req Petición HTTP.
+ * @param {import('express').Response} res Respuesta HTTP.
+ * @param {import('express').NextFunction} next Siguiente middleware.
+ * @returns {void}
+ */
+function allowCrossOriginEmbedding(req, res, next) {
+  res.setHeader(CROSS_ORIGIN_RESOURCE_POLICY, 'cross-origin');
+  next();
+}
 
 /**
  * Reúne los orígenes permitidos para CORS a partir de las variables de entorno.
@@ -57,7 +76,7 @@ function createApp({ controllers, database }) {
     }),
   );
 
-  app.use('/uploads', express.static('uploads'));
+  app.use('/uploads', allowCrossOriginEmbedding, express.static(UPLOADS_PATH));
 
   app.use(createApiRouter({ controllers, database }));
 

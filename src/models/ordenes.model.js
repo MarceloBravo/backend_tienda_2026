@@ -1,5 +1,16 @@
 'use strict';
 
+const AppError = require('../errors/AppError');
+
+/**
+ * Estado inicial de una orden. Solo las órdenes en este estado pueden
+ * reservar o liberar stock, lo que hace idempotente la liberación.
+ *
+ * @readonly
+ * @type {string}
+ */
+const ESTADO_PENDIENTE = 'PENDIENTE';
+
 /**
  * Modelo para gestión de órdenes.
  * Responsabilidad: Acceso a datos de ordenes y orden_detalle.
@@ -50,6 +61,7 @@ class OrdenesModel {
       const ordenId = ordenResult.insertId;
 
       await this.insertarDetalle(connection, ordenId, items);
+      await this.reservarStock(connection, items);
       await connection.commit();
 
       return {
@@ -96,6 +108,120 @@ class OrdenesModel {
        VALUES ?`,
       [detalleValues],
     );
+  }
+
+  /**
+   * Agrupa las cantidades por ASIN y las ordena alfabéticamente. Agrupar evita
+   * actualizar dos veces el mismo producto y ordenar reduce el riesgo de
+   * deadlocks entre transacciones concurrentes que bloquean las mismas filas.
+   *
+   * @param {Array<object>} [items=[]] Items con `asin`/`productoId` y `cantidad`.
+   * @returns {Array<{asin: string, cantidad: number}>} Cantidades agrupadas y ordenadas.
+   * @throws {AppError} Si algún item tiene una cantidad inválida.
+   */
+  agruparCantidadesPorAsin(items = []) {
+    const cantidades = new Map();
+
+    for (const item of items) {
+      const asin = item.asin || item.productoId;
+      if (!asin) {
+        continue;
+      }
+
+      const cantidad = Number(item.cantidad);
+      if (!Number.isInteger(cantidad) || cantidad <= 0) {
+        throw AppError.badRequest('Cantidad inválida en el carrito.');
+      }
+
+      cantidades.set(String(asin), (cantidades.get(String(asin)) || 0) + cantidad);
+    }
+
+    return [...cantidades.entries()]
+      .map(([asin, cantidad]) => ({ asin, cantidad }))
+      .sort((a, b) => a.asin.localeCompare(b.asin));
+  }
+
+  /**
+   * Reserva el stock de los items dentro de la transacción de la orden. La
+   * verificación y el descuento ocurren en una sola sentencia atómica para
+   * evitar sobreventa entre peticiones concurrentes.
+   *
+   * @param {import('mysql2').PoolConnection} connection Conexión transaccional.
+   * @param {Array<object>} items Items de la orden.
+   * @returns {Promise<void>}
+   * @throws {AppError} 400 si no hay stock suficiente para algún producto.
+   */
+  async reservarStock(connection, items) {
+    const cantidades = this.agruparCantidadesPorAsin(items);
+
+    for (const { asin, cantidad } of cantidades) {
+      const [result] = await connection.query(
+        'UPDATE productos SET stock = stock - ? WHERE asin = ? AND stock >= ?',
+        [cantidad, asin, cantidad],
+      );
+
+      if (result.affectedRows !== 1) {
+        throw AppError.badRequest(`Stock insuficiente para ${asin}.`);
+      }
+    }
+  }
+
+  /**
+   * Libera el stock reservado por una orden y la deja en un estado terminal.
+   * Solo actúa si la orden sigue en `PENDIENTE`, por lo que es idempotente ante
+   * retornos duplicados de Transbank.
+   *
+   * @param {number} ordenId ID de la orden.
+   * @param {'CANCELADO'|'RECHAZADO'} estadoFinal Estado terminal a aplicar.
+   * @returns {Promise<{actualizada: boolean, estado: string|null}>} Indica si la
+   *   transición se aplicó y el estado resultante de la orden.
+   * @throws {Error} Si la transacción falla.
+   */
+  async liberarStockDeOrden(ordenId, estadoFinal) {
+    const connection = await this.database.getConnection();
+
+    try {
+      await connection.beginTransaction();
+
+      const [ordenes] = await connection.query(
+        'SELECT estado FROM ordenes WHERE id = ? FOR UPDATE',
+        [ordenId],
+      );
+      const orden = ordenes[0];
+
+      if (!orden) {
+        await connection.rollback();
+        return { actualizada: false, estado: null };
+      }
+
+      if (orden.estado !== ESTADO_PENDIENTE) {
+        await connection.rollback();
+        return { actualizada: false, estado: orden.estado };
+      }
+
+      const [detalle] = await connection.query(
+        'SELECT COALESCE(asin, producto_id) AS asin, cantidad FROM orden_detalle WHERE orden_id = ?',
+        [ordenId],
+      );
+      const cantidades = this.agruparCantidadesPorAsin(detalle);
+
+      for (const { asin, cantidad } of cantidades) {
+        await connection.query('UPDATE productos SET stock = stock + ? WHERE asin = ?', [
+          cantidad,
+          asin,
+        ]);
+      }
+
+      await connection.query('UPDATE ordenes SET estado = ? WHERE id = ?', [estadoFinal, ordenId]);
+      await connection.commit();
+
+      return { actualizada: true, estado: estadoFinal };
+    } catch (error) {
+      await connection.rollback();
+      throw error;
+    } finally {
+      connection.release();
+    }
   }
 
   /**

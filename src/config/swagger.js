@@ -89,8 +89,8 @@ const definition = {
         required: ['asin', 'currency', 'product_price', 'product_title'],
         properties: {
           asin: { type: 'string', example: 'B0CP6DDN1H' },
-          currency: { type: 'string', example: 'USD' },
-          product_price: { type: 'number', example: 94.99 },
+          currency: { type: 'string', example: 'CLP' },
+          product_price: { type: 'number', example: 94990 },
           product_title: { type: 'string' },
           product_photo: { type: 'string', format: 'binary' },
           product_badge: { type: 'string' },
@@ -107,6 +107,7 @@ const definition = {
           product_num_ratings: { type: 'integer' },
           product_original_price: { type: 'number' },
           product_star_rating: { type: 'number' },
+          stock: { type: 'number' },
         },
       },
       Producto: {

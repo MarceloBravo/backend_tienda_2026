@@ -81,11 +81,16 @@ const productBaseShape = {
   product_photo: z.string().trim().optional(),
   product_price: z.coerce
     .number()
-    .nonnegative({ message: 'El campo product_price es obligatorio.' }),
+    .nonnegative({ message: 'El campo precio es obligatorio.' }),
   product_star_rating: z.coerce.number().min(0).max(5).optional(),
   product_title: z.string().trim().min(1, 'El campo product_title es obligatorio.'),
   product_url: z.string().trim().optional(),
   sales_volume: z.string().trim().max(255).optional(),
+  stock: z.coerce
+    .number()
+    .int('El campo stock debe ser un número entero.')
+    .nonnegative('El campo stock no puede ser negativo.')
+    .optional(),
 };
 
 /**

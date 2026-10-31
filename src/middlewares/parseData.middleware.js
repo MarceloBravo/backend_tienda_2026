@@ -29,6 +29,7 @@ const NUMBER_FIELDS = Object.freeze([
   'product_original_price',
   'product_price',
   'product_star_rating',
+  'stock',
 ]);
 
 /**

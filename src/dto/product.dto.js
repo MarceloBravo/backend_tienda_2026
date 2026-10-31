@@ -29,6 +29,7 @@ const PRODUCT_FIELDS = Object.freeze([
   'product_title',
   'product_url',
   'sales_volume',
+  'stock',
 ]);
 
 /**

@@ -249,7 +249,7 @@ describe('API integration', () => {
       const res = await request(app)
         .post('/api/productos')
         .field('asin', 'A1')
-        .field('currency', 'USD')
+        .field('currency', 'CLP')
         .field('product_price', '10')
         .field('product_title', 'Producto');
 
@@ -273,7 +273,7 @@ describe('API integration', () => {
         .post('/api/productos')
         .set('Authorization', `Bearer ${tokenFor('admin')}`)
         .field('asin', 'A1')
-        .field('currency', 'USD')
+        .field('currency', 'CLP')
         .field('product_price', '10')
         .field('product_title', 'Producto');
 
@@ -337,7 +337,7 @@ describe('API integration', () => {
       const res = await request(app)
         .put('/api/productos/A1')
         .field('product_title', 'Nuevo titulo')
-        .field('currency', 'USD')
+        .field('currency', 'CLP')
         .field('product_price', '10');
 
       expect(res.status).toBe(200);
