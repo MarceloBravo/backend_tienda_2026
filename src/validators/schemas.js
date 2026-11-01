@@ -79,9 +79,7 @@ const productBaseShape = {
   product_num_ratings: z.coerce.number().int().nonnegative().optional(),
   product_original_price: z.coerce.number().nonnegative().optional(),
   product_photo: z.string().trim().optional(),
-  product_price: z.coerce
-    .number()
-    .nonnegative({ message: 'El campo precio es obligatorio.' }),
+  product_price: z.coerce.number().nonnegative({ message: 'El campo precio es obligatorio.' }),
   product_star_rating: z.coerce.number().min(0).max(5).optional(),
   product_title: z.string().trim().min(1, 'El campo product_title es obligatorio.'),
   product_url: z.string().trim().optional(),

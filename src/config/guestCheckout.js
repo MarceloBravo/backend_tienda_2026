@@ -54,9 +54,11 @@ const DEFAULT_PAGO_INICIADO_TTL_HOURS = 24;
  * @returns {boolean} `true` solo cuando `GUEST_CHECKOUT_ENABLED=true`.
  */
 function isGuestCheckoutEnabled() {
-  return String(process.env.GUEST_CHECKOUT_ENABLED || 'false')
-    .trim()
-    .toLowerCase() === 'true';
+  return (
+    String(process.env.GUEST_CHECKOUT_ENABLED || 'false')
+      .trim()
+      .toLowerCase() === 'true'
+  );
 }
 
 /**
@@ -68,7 +70,9 @@ function isGuestCheckoutEnabled() {
 function getGuestTokenSecret() {
   const secret = process.env.GUEST_TOKEN_SECRETS;
   if (!secret) {
-    throw new Error('GUEST_TOKEN_SECRETS es obligatorio cuando la compra como invitado está habilitada.');
+    throw new Error(
+      'GUEST_TOKEN_SECRETS es obligatorio cuando la compra como invitado está habilitada.',
+    );
   }
   return secret;
 }
@@ -109,10 +113,7 @@ function getGuestOrderTtlHours() {
  * @returns {number} Cantidad máxima de órdenes por lote.
  */
 function getOrderCleanupBatchSize() {
-  return toPositiveInteger(
-    process.env.ORDER_CLEANUP_BATCH_SIZE,
-    DEFAULT_ORDER_CLEANUP_BATCH_SIZE,
-  );
+  return toPositiveInteger(process.env.ORDER_CLEANUP_BATCH_SIZE, DEFAULT_ORDER_CLEANUP_BATCH_SIZE);
 }
 
 /**
@@ -130,10 +131,7 @@ function getOrderRetentionDays() {
  * @returns {number} Horas configuradas.
  */
 function getPagoIniciadoTtlHours() {
-  return toPositiveInteger(
-    process.env.PAGO_INICIADO_TTL_HOURS,
-    DEFAULT_PAGO_INICIADO_TTL_HOURS,
-  );
+  return toPositiveInteger(process.env.PAGO_INICIADO_TTL_HOURS, DEFAULT_PAGO_INICIADO_TTL_HOURS);
 }
 
 /**
