@@ -1,3 +1,9 @@
+# Backend de la tienda: mismo proxy nginx que se migrará a Caddy
+backtiendamabc.duckdns.org {
+	reverse_proxy app:3000
+}
+
+# n8n (Chat Trigger embebido)
 n8nbacktiendamabc.duckdns.org {
-    reverse_proxy n8n:5678
+	reverse_proxy n8n:5678
 }
