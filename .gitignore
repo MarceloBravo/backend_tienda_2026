@@ -11,3 +11,4 @@ server.log
 .DS_Store
 .env.oracle
 TODO.md
+n8n_data/

@@ -59,6 +59,15 @@ jobs:
             git fetch -q --depth 1 origin main
             git checkout -q -f -B main FETCH_HEAD
 
+            # --- Estado persistente de n8n (no versionado) ---
+            mkdir -p "$APP_DIR/n8n_data"
+            chown -R 1000:1000 "$APP_DIR/n8n_data"
+            chmod 700 "$APP_DIR/n8n_data"
+            if [ -f "$APP_DIR/n8n_data/config" ]; then
+              chmod 600 "$APP_DIR/n8n_data/config"
+            fi
+            # -------------------------------------------------
+
             docker compose -f docker-compose.prod.yml build --pull
             docker compose -f docker-compose.prod.yml up -d
 
@@ -66,6 +75,16 @@ jobs:
             for i in $(seq 1 30); do
               if curl -fsS http://localhost:3000/api/health > /dev/null 2>&1; then
                 echo "Health check OK"
+                echo "Waiting for n8n CLI..."
+                for j in $(seq 1 15); do
+                  if docker compose -f docker-compose.prod.yml exec -T n8n n8n list:workflow; then
+                    break
+                  fi
+                  if [ "$j" -eq 15 ]; then
+                    echo "ADVERTENCIA: n8n no respondió a tiempo; continuando"
+                  fi
+                  sleep 2
+                done
                 docker image prune -f
                 exit 0
               fi
