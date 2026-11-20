@@ -12,3 +12,4 @@ server.log
 .env.oracle
 TODO.md
 n8n_data/
+n8n_data.tgz
